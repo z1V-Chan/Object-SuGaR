@@ -24,6 +24,13 @@ def gaussian(window_size, sigma):
     gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)])
     return gauss / gauss.sum()
 
+def alpha_loss(mask, mask_gt):
+    bg_mask_gt = torch.logical_not(mask_gt)
+    loss = (
+        bg_mask_gt * F.binary_cross_entropy(mask, mask_gt, reduction="none")
+    ).sum() / bg_mask_gt.sum()
+    return loss
+
 def create_window(window_size, channel):
     _1D_window = gaussian(window_size, 1.5).unsqueeze(1)
     _2D_window = _1D_window.mm(_1D_window.t()).float().unsqueeze(0).unsqueeze(0)
