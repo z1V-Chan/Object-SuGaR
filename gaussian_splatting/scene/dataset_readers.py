@@ -157,6 +157,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.txt")
         cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
         cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
+    # R, t represented by `qvec` and `tvec` in `cam_extrinsics`
 
     reading_dir = "images" if images == None else images
     masks_folder = os.path.join(path, "masks/")

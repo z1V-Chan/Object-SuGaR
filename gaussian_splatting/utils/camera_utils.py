@@ -3,12 +3,13 @@
 # GRAPHDECO research group, https://team.inria.fr/graphdeco
 # All rights reserved.
 #
-# This software is free for non-commercial, research and evaluation use 
+# This software is free for non-commercial, research and evaluation use
 # under the terms of the LICENSE.md file.
 #
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+import torch
 from scene.cameras import Camera
 import numpy as np
 from utils.general_utils import PILtoTorch
@@ -81,3 +82,19 @@ def camera_to_JSON(id, camera : Camera):
         'fx' : fov2focal(camera.FovX, camera.width)
     }
     return camera_entry
+
+
+def prepare_refine_cameras(cameras: list[Camera]) -> Camera:
+    base_camera = cameras[0]
+    R1_inv = base_camera.R
+    t1 = base_camera.T
+    data_device = base_camera.data_device
+    for camera in cameras:
+        camera.R_relative = torch.tensor(R1_inv @ camera.R.T).to(data_device, dtype=torch.float32)
+        camera.T_relative = torch.tensor(R1_inv @ (camera.T - t1)).to(data_device, dtype=torch.float32)
+        # camera.T_relative = torch.tensor(R1_inv @ (camera.T - t1)).to(data_device, dtype=torch.float32).requires_grad_()
+        camera.world_view_transform = base_camera.world_view_transform
+        camera.projection_matrix = base_camera.projection_matrix
+        camera.full_proj_transform = base_camera.full_proj_transform
+        camera.camera_center = base_camera.camera_center
+    return base_camera

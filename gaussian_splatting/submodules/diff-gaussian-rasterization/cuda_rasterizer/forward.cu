@@ -202,7 +202,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	// If 3D covariance matrix is precomputed, use it, otherwise compute
 	// from scaling and rotation parameters. 
 	const float* cov3D;
-	if (cov3D_precomp != nullptr)
+	if (cov3D_precomp != nullptr) // NOTE: cov3D_precomp could be pre-computed
 	{
 		cov3D = cov3D_precomp + idx * 6;
 	}

@@ -3,7 +3,7 @@
 # GRAPHDECO research group, https://team.inria.fr/graphdeco
 # All rights reserved.
 #
-# This software is free for non-commercial, research and evaluation use 
+# This software is free for non-commercial, research and evaluation use
 # under the terms of the LICENSE.md file.
 #
 # For inquiries contact  george.drettakis@inria.fr
@@ -12,16 +12,18 @@
 import torch
 import math
 from diff_gaussian_rasterization import GaussianRasterizationSettings, GaussianRasterizer
+from scene.cameras import Camera
 from scene.gaussian_model import GaussianModel
 from utils.sh_utils import eval_sh
+from utils.general_utils import strip_symmetric
 
-def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None):
+def render(viewpoint_camera:Camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None):
     """
     Render the scene. 
     
     Background tensor (bg_color) must be on GPU!
     """
- 
+
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
     screenspace_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
     try:
@@ -59,11 +61,27 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     scales = None
     rotations = None
     cov3D_precomp = None
-    if pipe.compute_cov3D_python:
-        cov3D_precomp = pc.get_covariance(scaling_modifier)
-    else:
+
+    if not pipe.compute_cov3D_python:
+        assert viewpoint_camera.R_relative == None
         scales = pc.get_scaling
         rotations = pc.get_rotation
+    else:
+        cov3D_actual_precomp = pc.get_covariance(scaling_modifier)
+
+        if viewpoint_camera.R_relative is not None:
+            cov3D_actual_precomp = torch.einsum(
+                "ab,ibc,cd->iad",
+                viewpoint_camera.R_relative,
+                cov3D_actual_precomp,
+                viewpoint_camera.R_relative.T,
+            )
+            means3D = (
+                torch.einsum("ab,ib->ia", viewpoint_camera.R_relative, means3D)
+                + viewpoint_camera.T_relative
+            )
+
+        cov3D_precomp = strip_symmetric(cov3D_actual_precomp)
 
     # If precomputed colors are provided, use them. Otherwise, if it is desired to precompute colors
     # from SHs in Python, do it. If not, then SH -> RGB conversion will be done by rasterizer.
@@ -81,7 +99,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     else:
         colors_precomp = override_color
 
-    # Rasterize visible Gaussians to image, obtain their radii (on screen). 
+    # Rasterize visible Gaussians to image, obtain their radii (on screen).
     rendered_image, radii, rendered_depth, rendered_alpha = rasterizer(
         means3D = means3D,
         means2D = means2D,

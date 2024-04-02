@@ -54,6 +54,7 @@ class ModelParams(ParamGroup):
         self._white_background = False
         self.data_device = "cuda"
         self.eval = False
+        self.refine_extrinsic = True
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):
@@ -64,7 +65,7 @@ class ModelParams(ParamGroup):
 class PipelineParams(ParamGroup):
     def __init__(self, parser):
         self.convert_SHs_python = False
-        self.compute_cov3D_python = False
+        self.compute_cov3D_python = True
         self.debug = False
         super().__init__(parser, "Pipeline Parameters")
 
