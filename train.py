@@ -56,6 +56,8 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--export_uv_textured_mesh', type=str2bool, default=True, 
                         help='If True, will export a textured mesh as an .obj file from the refined SuGaR model. '
                         'Computing a traditional colored UV texture should take less than 10 minutes.')
+    parser.add_argument('--lambda_alpha', type=float, default=0.075, 
+                        help='Lambda value to use for the alpha mask on loss.')
     parser.add_argument('--square_size',
                         default=10, type=int, help='Size of the square to use for the UV texture.')
     parser.add_argument('--postprocess_mesh', type=str2bool, default=False, 
@@ -119,6 +121,7 @@ if __name__ == "__main__":
         'eval': args.eval,
         'estimation_factor': 0.2,
         'normal_factor': 0.2,
+        'lambda_alpha': args.lambda_alpha,
         'gpu': args.gpu,
     })
     if args.regularization_type == 'sdf':
@@ -165,6 +168,7 @@ if __name__ == "__main__":
         'bboxmax': args.bboxmax,
         'export_ply': args.export_ply,
         'eval': args.eval,
+        'lambda_alpha': args.lambda_alpha,
         'gpu': args.gpu,
     })
     refined_sugar_path = refined_training(refined_args)

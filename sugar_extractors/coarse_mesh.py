@@ -39,7 +39,7 @@ def extract_mesh_from_coarse_sugar(args):
     # Mesh computation parameters
     fg_bbox_factor = 1.  # 1.
     bg_bbox_factor = 4.  # 4.
-    poisson_depth = 10  # 10 for most real scenes. 6 or 7 work well for most synthetic scenes
+    poisson_depth = 7  # 10 for most real scenes. 6 or 7 work well for most synthetic scenes
     vertices_density_quantile = 0.1  # 0.1 for most real scenes. 0. works well for most synthetic scenes
     decimate_mesh = True
     clean_mesh = True
@@ -261,7 +261,7 @@ def extract_mesh_from_coarse_sugar(args):
                         compute_covariance_in_rasterizer=True,
                         return_2d_radii=False,
                         use_same_scale_in_all_directions=False,
-                    ).clamp(min=0., max=1.).contiguous()
+                    )['image'].clamp(min=0., max=1.).contiguous()
                     
                     # Compute surface level points for the current frame
                     if cam_idx == 0:
@@ -399,7 +399,7 @@ def extract_mesh_from_coarse_sugar(args):
                 
                 # ---Compute background mesh---
                 CONSOLE.print("\n-----Background mesh-----")
-                if bg_points.shape[0] > 0:
+                if bg_points.shape[0] < 0:
                     CONSOLE.print("Computing points, colors and normals...")
                     bg_pcd = o3d.geometry.PointCloud()
                     bg_pcd.points = o3d.utility.Vector3dVector(bg_points.double().cpu().numpy())

@@ -2138,7 +2138,7 @@ class SuGaR(nn.Module):
                 print("scales", scales.shape)
             print("screenspace_points", screenspace_points.shape)
         
-        rendered_image, radii = rasterizer(
+        rendered_image, radii, rendered_depth, rendered_alpha = rasterizer(
             means3D = positions,
             means2D = means2D,
             shs = shs,
@@ -2149,11 +2149,16 @@ class SuGaR(nn.Module):
             cov3D_precomp = cov3D)
         
         if not(return_2d_radii or return_opacities or return_colors):
-            return rendered_image.transpose(0, 1).transpose(1, 2)
+            outputs = {
+                "image": rendered_image.transpose(0, 1).transpose(1, 2),
+                "alpha": rendered_alpha.transpose(0, 1).transpose(1, 2),
+            }
+            return outputs
         
         else:
             outputs = {
                 "image": rendered_image.transpose(0, 1).transpose(1, 2),
+                "alpha": rendered_alpha.transpose(0, 1).transpose(1, 2),
                 "radii": radii,
                 "viewspace_points": screenspace_points,
             }
@@ -2524,7 +2529,7 @@ def extract_texture_image_and_uv_from_gaussians(
             camera_indices=cam_idx,
             sh_deg=0,  #rc.sh_levels-1,
             compute_color_in_rasterizer=True,  #compute_color_in_rasterizer,
-        ).clamp(min=0, max=1)
+        )["image"].clamp(min=0, max=1)
         
         fragments = renderer.rasterizer(idx_mesh, cameras=p3d_cameras)
         idx_img = renderer.shader(fragments, idx_mesh, cameras=p3d_cameras)[0, ..., :2]

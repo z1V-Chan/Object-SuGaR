@@ -10,6 +10,8 @@ from sugar_scene.sugar_optimizer import OptimizationParams, SuGaROptimizer
 from sugar_scene.sugar_densifier import SuGaRDensifier
 from sugar_utils.loss_utils import ssim, l1_loss, l2_loss
 
+from gaussian_splatting.utils.loss_utils import alpha_loss
+
 from rich.console import Console
 import time
 
@@ -222,9 +224,9 @@ def coarse_training_with_density_regularization(args):
         
 
     # -----Log and save-----
-    print_loss_every_n_iterations = 50
+    print_loss_every_n_iterations = 200
     save_model_every_n_iterations = 1_000_000
-    save_milestones = [9000, 12_000, 15_000]
+    save_milestones = [9000, 15_000]
 
     # ====================End of parameters====================
 
@@ -514,20 +516,31 @@ def coarse_training_with_density_regularization(args):
                     sugar.image_height, 
                     sugar.image_width, 
                     3)
+                pred_alpha = outputs['alpha'].view(-1,
+                    sugar.image_height,
+                    sugar.image_width,
+                    1)
                 radii = outputs['radii']
                 viewspace_points = outputs['viewspace_points']
                 if enforce_entropy_regularization:
                     opacities = outputs['opacities']
                 
                 pred_rgb = pred_rgb.transpose(-1, -2).transpose(-2, -3)  # TODO: Change for torch.permute
+                pred_alpha = pred_alpha.transpose(-1, -2).transpose(-2, -3)  # TODO: Change for torch.permute
                 
                 # Gather rgb ground truth
                 gt_image = nerfmodel.get_gt_image(camera_indices=camera_indices)           
                 gt_rgb = gt_image.view(-1, sugar.image_height, sugar.image_width, 3)
                 gt_rgb = gt_rgb.transpose(-1, -2).transpose(-2, -3)
-                    
+
+                # Gather alpha ground truth
+                gt_alpha = nerfmodel.get_alpha_mask(camera_indices=camera_indices)           
+                gt_alpha = gt_alpha.view(-1, sugar.image_height, sugar.image_width, 1)
+                gt_alpha = gt_alpha.transpose(-1, -2).transpose(-2, -3)
+
                 # Compute loss 
-                loss = loss_fn(pred_rgb, gt_rgb)
+                loss = loss_fn(pred_rgb, gt_rgb) + args.lambda_alpha * alpha_loss(pred_alpha, gt_alpha)
+                # loss = loss_fn(pred_rgb, gt_rgb)
                         
                 if enforce_entropy_regularization and iteration > start_entropy_regularization_from and iteration < end_entropy_regularization_at:
                     if iteration == start_entropy_regularization_from + 1:

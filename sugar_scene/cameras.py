@@ -13,7 +13,7 @@ from sugar_utils.general_utils import PILtoTorch
 
 
 def load_gs_cameras(source_path, gs_output_path, image_resolution=1, 
-                    load_gt_images=True, max_img_size=1920):
+                    load_gt_images=True, load_gt_masks=True, max_img_size=1920):
     """Loads Gaussian Splatting camera parameters from a COLMAP reconstruction.
 
     Args:
@@ -27,6 +27,7 @@ def load_gs_cameras(source_path, gs_output_path, image_resolution=1,
         List of GSCameras: List of Gaussian Splatting cameras.
     """
     image_dir = os.path.join(source_path, 'images')
+    mask_dir = os.path.join(source_path, 'masks')
     
     with open(gs_output_path + 'cameras.json') as f:
         unsorted_camera_transforms = json.load(f)
@@ -67,6 +68,7 @@ def load_gs_cameras(source_path, gs_output_path, image_resolution=1,
         id = camera_transform['id']
         name = camera_transform['img_name']
         image_path = os.path.join(image_dir,  name + extension)
+        mask_path = os.path.join(mask_dir,  name + extension)
         
         if load_gt_images:
             image = Image.open(image_path)
@@ -80,11 +82,13 @@ def load_gs_cameras(source_path, gs_output_path, image_resolution=1,
                 downscale_factor = additional_downscale_factor * downscale_factor
             resolution = round(orig_w/(downscale_factor)), round(orig_h/(downscale_factor))
             resized_image_rgb = PILtoTorch(image, resolution)
+            resized_mask = PILtoTorch(Image.open(mask_path), resolution) if load_gt_masks else None
             gt_image = resized_image_rgb[:3, ...]
             
             image_height, image_width = None, None
         else:
             gt_image = None
+            resized_mask = None
             if image_resolution in [1, 2, 4, 8]:
                 downscale_factor = image_resolution
                 # resolution = round(orig_w/(image_resolution)), round(orig_h/(image_resolution))
@@ -94,7 +98,7 @@ def load_gs_cameras(source_path, gs_output_path, image_resolution=1,
             image_height, image_width = round(height/downscale_factor), round(width/downscale_factor)
         
         gs_camera = GSCamera(
-            colmap_id=id, image=gt_image, gt_alpha_mask=None,
+            colmap_id=id, image=gt_image, gt_alpha_mask=None, alpha_mask=resized_mask,
             R=R, T=T, FoVx=fov_x, FoVy=fov_y,
             image_name=name, uid=id,
             image_height=image_height, image_width=image_width,)
@@ -107,7 +111,7 @@ def load_gs_cameras(source_path, gs_output_path, image_resolution=1,
 class GSCamera(torch.nn.Module):
     """Class to store Gaussian Splatting camera parameters.
     """
-    def __init__(self, colmap_id, R, T, FoVx, FoVy, image, gt_alpha_mask,
+    def __init__(self, colmap_id, R, T, FoVx, FoVy, image, gt_alpha_mask, alpha_mask,
                  image_name, uid,
                  trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda",
                  image_height=None, image_width=None,
@@ -164,6 +168,9 @@ class GSCamera(torch.nn.Module):
                 self.original_image *= gt_alpha_mask.to(self.data_device)
             else:
                 self.original_image *= torch.ones((1, self.image_height, self.image_width), device=self.data_device)
+
+        if alpha_mask is not None:
+            self.alpha_mask = alpha_mask.to(self.data_device)
 
         self.zfar = 100.0
         self.znear = 0.01

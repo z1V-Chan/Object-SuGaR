@@ -13,6 +13,7 @@ from sugar_utils.loss_utils import ssim, l1_loss, l2_loss
 from rich.console import Console
 import time
 
+from gaussian_splatting.utils.loss_utils import alpha_loss
 
 def refined_training(args):
     CONSOLE = Console(width=120)
@@ -222,7 +223,7 @@ def refined_training(args):
         
 
     # -----Log and save-----
-    print_loss_every_n_iterations = 50
+    print_loss_every_n_iterations = 200
     save_model_every_n_iterations = 1_000_000 # 500, 1_000_000  # TODO
     save_milestones = [2000, 7_000, 15_000]
 
@@ -556,29 +557,39 @@ def refined_training(args):
                     use_same_scale_in_all_directions=use_same_scale_in_all_directions,
                     return_opacities=enforce_entropy_regularization,
                     )
-                if use_densifier or regularize or enforce_entropy_regularization:
-                    pred_rgb = outputs['image'].view(-1, 
-                        sugar.image_height, 
-                        sugar.image_width, 
-                        3)
-                    if use_densifier or regularize:
-                        radii = outputs['radii']
-                        viewspace_points = outputs['viewspace_points']
-                    if enforce_entropy_regularization:
-                        opacities = outputs['opacities']
-                else:
-                    pred_rgb = outputs.view(-1, sugar.image_height, sugar.image_width, 3)
-                
+                # if use_densifier or regularize or enforce_entropy_regularization:
+                pred_rgb = outputs['image'].view(-1, 
+                    sugar.image_height, 
+                    sugar.image_width, 
+                    3)
+                pred_alpha = outputs["alpha"].view(
+                    -1, sugar.image_height, sugar.image_width, 1
+                )
+                if use_densifier or regularize:
+                    radii = outputs['radii']
+                    viewspace_points = outputs['viewspace_points']
+                if enforce_entropy_regularization:
+                    opacities = outputs['opacities']
+                # else:
+                #     pred_rgb = outputs.view(-1, sugar.image_height, sugar.image_width, 3)
+
                 pred_rgb = pred_rgb.transpose(-1, -2).transpose(-2, -3)  # TODO: Change for torch.permute
-                
+                pred_alpha = pred_alpha.transpose(-1, -2).transpose(-2, -3)  # TODO: Change for torch.permute
+
                 # Gather rgb ground truth
                 gt_image = nerfmodel.get_gt_image(camera_indices=camera_indices)           
                 gt_rgb = gt_image.view(-1, sugar.image_height, sugar.image_width, 3)
                 gt_rgb = gt_rgb.transpose(-1, -2).transpose(-2, -3)
-                    
-                # Compute loss 
-                loss = loss_fn(pred_rgb, gt_rgb)
-                        
+
+                # Gather alpha ground truth
+                gt_alpha = nerfmodel.get_alpha_mask(camera_indices=camera_indices)           
+                gt_alpha = gt_alpha.view(-1, sugar.image_height, sugar.image_width, 1)
+                gt_alpha = gt_alpha.transpose(-1, -2).transpose(-2, -3)
+
+                # Compute loss
+                loss = loss_fn(pred_rgb, gt_rgb) + args.lambda_alpha * alpha_loss(pred_alpha, gt_alpha)
+                # loss = loss_fn(pred_rgb, gt_rgb)
+
                 if enforce_entropy_regularization and iteration > start_entropy_regularization_from and iteration < end_entropy_regularization_at:
                     if iteration == start_entropy_regularization_from + 1:
                         CONSOLE.print("\n---INFO---\nStarting entropy regularization.")

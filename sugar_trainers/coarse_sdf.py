@@ -220,7 +220,7 @@ def coarse_training_with_sdf_regularization(args):
     # -----Log and save-----
     print_loss_every_n_iterations = 50
     save_model_every_n_iterations = 1_000_000
-    save_milestones = [9000, 12_000, 15_000]
+    save_milestones = [9000, 15_000]
 
     # ====================End of parameters====================
 
